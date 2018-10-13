@@ -108,7 +108,7 @@ class ControllerTest {
 			}
 
 			@ParameterizedTest
-			@DisplayName("and search yields no results, when user runs the search, the an empty collection is returned and no operation is recorded to audit log")
+			@DisplayName("and search yields no results, when user runs the search, then an empty collection is returned and nothing is recorded to audit log")
 			@ArgumentsSource(RolesPermittedToPerformSearch.class)
 			void noSearchResults(Role role) throws Exception {
 				givenUserRoleIs(role);
@@ -118,6 +118,35 @@ class ControllerTest {
 
 				assertAll(() -> assertTrue(actualResult.isEmpty(), "Empty collection is returned"),
 						() -> Mockito.verifyZeroInteractions(auditService));
+			}
+
+			@ParameterizedTest
+			@DisplayName("and search is fails, then an error is reported and nothing is recorded to audit log")
+			@ArgumentsSource(RolesPermittedToPerformSearch.class)
+			void searchFails(Role role) throws Exception {
+				givenUserRoleIs(role);
+				givenCustomerServiceIsUnavailable();
+
+				RuntimeException thrown = assertThrows(RuntimeException.class, () -> whenSearched(),
+						"Error is reported");
+
+				assertAll("Error is reported and nothing is recorded to audit log",
+						() -> assertEquals("Customer service unavailable", thrown.getMessage()),
+						() -> Mockito.verifyZeroInteractions(auditService));
+			}
+
+			@ParameterizedTest
+			@DisplayName("and recording audit log fails, error is reported and nothing is recorded to audit log")
+			@ArgumentsSource(RolesPermittedToPerformSearch.class)
+			void auditFails(Role role) throws Exception {
+				givenUserRoleIs(role);
+				givenSearchedReturns(new Customer(1, "Göran Pullarsson", null));
+				givenAuditServiceIsUnavailable();
+
+				RuntimeException thrown = assertThrows(RuntimeException.class, () -> whenSearched(),
+						"Error is reported");
+
+				assertEquals("Audit service unavailable", thrown.getMessage(), "Expected error is reported");
 			}
 
 		}
@@ -131,6 +160,11 @@ class ControllerTest {
 
 			assertAll(() -> Mockito.verifyZeroInteractions(customerService),
 					() -> assertAuditsAreRecorded(new Audit(USER_NAME, "Attempted to perform search")));
+		}
+
+		private void givenCustomerServiceIsUnavailable() {
+			Mockito.when(customerService.search(Mockito.anyString()))
+					.thenThrow(new RuntimeException("Customer service unavailable"));
 		}
 
 	}
@@ -164,6 +198,20 @@ class ControllerTest {
 					() -> assertUpdatedWith(new Customer(1, "Jaakko Kopiainen", "jaakko.kop123@gmailer.com")),
 					() -> assertAuditsAreRecorded(new Audit(USER_NAME, "Updating customer :1")));
 		}
+
+		@Test
+		@DisplayName("Given the user has role ADMIN and audit service is unavailable, error is reported and update is not made")
+		void testCustomerServiceUnavailable() {
+			givenUserRoleIs(Role.ADMIN);
+			givenAuditServiceIsUnavailable();
+
+			RuntimeException thrown = assertThrows(RuntimeException.class,
+					() -> whenUpdating(new Customer(1, "Jaakko Kopiainen", "jaakko.kop123@gmailer.com")));
+
+			assertAll("Error is reported and update is not made",
+					() -> assertEquals("Audit service unavailable", thrown.getMessage()),
+					() -> Mockito.verifyZeroInteractions(customerService));
+		}
 	}
 
 	private void givenUserRoleIs(Role role) {
@@ -173,6 +221,10 @@ class ControllerTest {
 
 	private void givenSearchedReturns(Customer... customers) {
 		Mockito.when(customerService.search(Mockito.anyString())).thenReturn(Arrays.asList(customers));
+	}
+
+	private void givenAuditServiceIsUnavailable() {
+		Mockito.doThrow(new RuntimeException("Audit service unavailable")).when(auditService).post(Mockito.any());
 	}
 
 	private Collection<Customer> whenSearched() {
