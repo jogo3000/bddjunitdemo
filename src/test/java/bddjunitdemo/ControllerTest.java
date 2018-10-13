@@ -8,6 +8,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -23,7 +24,7 @@ import bddjunitdemo.user.Role;
 import bddjunitdemo.user.User;
 
 @ExtendWith(MockitoExtension.class)
-class MessyControllerTest {
+class ControllerTest {
 	@Mock
 	private User user;
 	@Mock
@@ -34,6 +35,7 @@ class MessyControllerTest {
 	private Controller controller;
 
 	@Test
+	@DisplayName("Given the user has role USER and search returns one result, when user runs the search, then results are returned and operation is recorded to audit log")
 	void testSearch() {
 		Mockito.when(user.getRole()).thenReturn(Role.USER);
 
@@ -45,14 +47,27 @@ class MessyControllerTest {
 		assertNotNull(searchResults);
 		assertEquals(1, searchResults.size());
 
+		Mockito.verify(auditService).post(Mockito.any(Audit.class));
+
+	}
+
+	@Test
+	@DisplayName("Given the user has role USER and search returns zero results, when user runs the search, the an empty collection is returned and operation is recorded to audit log")
+	void noSearchResults() throws Exception {
+		Mockito.when(user.getRole()).thenReturn(Role.USER);
+
 		Mockito.when(customerService.search(Mockito.anyString())).thenReturn(Collections.emptyList());
 
-		searchResults = controller.search("Paavo");
+		Collection<Customer> searchResults = controller.search("Paavo");
 		assertNotNull(searchResults);
 		assertEquals(0, searchResults.size());
 
-		Mockito.verify(auditService, Mockito.times(2)).post(Mockito.any(Audit.class));
+		Mockito.verify(auditService).post(Mockito.any(Audit.class));
+	}
 
+	@Test
+	@DisplayName("Given the user has no role, when user runs the search, then an error is reported")
+	void userHasNoRole() throws Exception {
 		Mockito.when(user.getRole()).thenReturn(null);
 
 		try {
@@ -60,11 +75,11 @@ class MessyControllerTest {
 			fail();
 		} catch (Exception e) {
 		}
-
 	}
 
 	@Test
-	void testUpdate() throws Exception {
+	@DisplayName("Given the user has role USER, when user updates a customer, then an error is reported")
+	void testUpdateAsUser() throws Exception {
 		Mockito.when(user.getRole()).thenReturn(Role.USER);
 		try {
 			controller.update(new Customer(0, null, null));
@@ -72,7 +87,11 @@ class MessyControllerTest {
 		} catch (Exception e) {
 
 		}
+	}
 
+	@Test
+	@DisplayName("Given the user has role ADMIN, when user updates a customer, then audit log is recorded")
+	void testUpdateAsAdmin() {
 		Mockito.when(user.getRole()).thenReturn(Role.ADMIN);
 		controller.update(new Customer(0, null, null));
 
