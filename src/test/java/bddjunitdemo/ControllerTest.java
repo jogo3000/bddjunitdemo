@@ -61,7 +61,9 @@ class ControllerTest {
 	static class RolesNotPermittedToPerformUpdate implements ArgumentsProvider {
 		@Override
 		public Stream<? extends Arguments> provideArguments(ExtensionContext context) throws Exception {
-			return Stream.of(Role.values()).filter(role -> role != Role.ADMIN).map(Arguments::of);
+			Stream<Role> allRolesButAdmin = Stream.of(Role.values()).filter(role -> role != Role.ADMIN);
+			Stream<Role> noRoleAndAllRolesButAdmin = Stream.concat(Stream.of((Role) null), allRolesButAdmin);
+			return noRoleAndAllRolesButAdmin.map(Arguments::of);
 		}
 	}
 
@@ -142,7 +144,7 @@ class ControllerTest {
 		@ParameterizedTest
 		@DisplayName("Given the user has no privileges, when user updates a customer, then an error is reported and audit log is recorded")
 		@ArgumentsSource(RolesNotPermittedToPerformUpdate.class)
-		void testUpdateAsUser(Role role) throws Exception {
+		void testUpdateAsUnprivilegedUser(Role role) throws Exception {
 			givenUserRoleIs(role);
 
 			assertThrows(RuntimeException.class, () -> whenUpdating(new Customer(1, null, null)),
