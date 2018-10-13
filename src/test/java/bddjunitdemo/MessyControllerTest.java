@@ -35,6 +35,8 @@ class MessyControllerTest {
 
 	@Test
 	void testSearch() {
+		Mockito.when(user.getRole()).thenReturn(Role.USER);
+
 		Mockito.when(customerService.search("Erkki"))
 				.thenReturn(Arrays.asList(new Customer(1, "Erkki Heimonen", null)));
 
@@ -50,6 +52,15 @@ class MessyControllerTest {
 		assertEquals(0, searchResults.size());
 
 		Mockito.verify(auditService, Mockito.times(2)).post(Mockito.any(Audit.class));
+
+		Mockito.when(user.getRole()).thenReturn(null);
+
+		try {
+			controller.search("Liisa");
+			fail();
+		} catch (Exception e) {
+		}
+
 	}
 
 	@Test
