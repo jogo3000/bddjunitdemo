@@ -14,12 +14,18 @@ import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import bddjunitdemo.audit.Audit;
+import bddjunitdemo.audit.AuditService;
 import bddjunitdemo.customer.Customer;
 import bddjunitdemo.customer.CustomerService;
+import bddjunitdemo.user.User;
 
 @ExtendWith(MockitoExtension.class)
 class ControllerTest {
-
+	@Mock
+	private User user;
+	@Mock
+	private AuditService auditService;
 	@Mock
 	private CustomerService customerService;
 	@InjectMocks
@@ -40,11 +46,15 @@ class ControllerTest {
 		searchResults = controller.search("Paavo");
 		assertNotNull(searchResults);
 		assertEquals(0, searchResults.size());
+
+		Mockito.verify(auditService, Mockito.times(2)).post(Mockito.any(Audit.class));
 	}
 
 	@Test
 	void testUpdate() throws Exception {
 		controller.update(new Customer(0, null, null));
+
+		Mockito.verify(auditService).post(Mockito.any(Audit.class));
 	}
 
 }
