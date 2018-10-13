@@ -1,16 +1,26 @@
 package bddjunitdemo;
 
+import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.fail;
+import static org.junit.jupiter.api.Assertions.assertIterableEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
+import java.util.stream.Stream;
 
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.extension.ExtensionContext;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.ArgumentsProvider;
+import org.junit.jupiter.params.provider.ArgumentsSource;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Captor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Mockito;
@@ -25,6 +35,13 @@ import bddjunitdemo.user.User;
 
 @ExtendWith(MockitoExtension.class)
 class ControllerTest {
+
+	private static String USER_NAME = "t389kk";
+
+	@Captor
+	private ArgumentCaptor<Audit> auditCaptor;
+	@Captor
+	private ArgumentCaptor<Customer> customerCaptor;
 	@Mock
 	private User user;
 	@Mock
@@ -34,68 +51,150 @@ class ControllerTest {
 	@InjectMocks
 	private Controller controller;
 
-	@Test
-	@DisplayName("Given the user has role USER and search returns one result, when user runs the search, then results are returned and operation is recorded to audit log")
-	void testSearch() {
-		Mockito.when(user.getRole()).thenReturn(Role.USER);
-
-		Mockito.when(customerService.search("Erkki"))
-				.thenReturn(Arrays.asList(new Customer(1, "Erkki Heimonen", null)));
-
-		Collection<Customer> searchResults = controller.search("Erkki");
-
-		assertNotNull(searchResults);
-		assertEquals(1, searchResults.size());
-
-		Mockito.verify(auditService).post(Mockito.any(Audit.class));
-
-	}
-
-	@Test
-	@DisplayName("Given the user has role USER and search returns zero results, when user runs the search, the an empty collection is returned and operation is recorded to audit log")
-	void noSearchResults() throws Exception {
-		Mockito.when(user.getRole()).thenReturn(Role.USER);
-
-		Mockito.when(customerService.search(Mockito.anyString())).thenReturn(Collections.emptyList());
-
-		Collection<Customer> searchResults = controller.search("Paavo");
-		assertNotNull(searchResults);
-		assertEquals(0, searchResults.size());
-
-		Mockito.verify(auditService).post(Mockito.any(Audit.class));
-	}
-
-	@Test
-	@DisplayName("Given the user has no role, when user runs the search, then an error is reported")
-	void userHasNoRole() throws Exception {
-		Mockito.when(user.getRole()).thenReturn(null);
-
-		try {
-			controller.search("Liisa");
-			fail();
-		} catch (Exception e) {
+	static class RolesPermittedToPerformSearch implements ArgumentsProvider {
+		@Override
+		public Stream<? extends Arguments> provideArguments(ExtensionContext context) throws Exception {
+			return Stream.of(Role.ADMIN, Role.USER).map(Arguments::of);
 		}
 	}
 
-	@Test
-	@DisplayName("Given the user has role USER, when user updates a customer, then an error is reported")
-	void testUpdateAsUser() throws Exception {
-		Mockito.when(user.getRole()).thenReturn(Role.USER);
-		try {
-			controller.update(new Customer(0, null, null));
-			fail("");
-		} catch (Exception e) {
-
+	static class RolesNotPermittedToPerformUpdate implements ArgumentsProvider {
+		@Override
+		public Stream<? extends Arguments> provideArguments(ExtensionContext context) throws Exception {
+			return Stream.of(Role.values()).filter(role -> role != Role.ADMIN).map(Arguments::of);
 		}
 	}
 
-	@Test
-	@DisplayName("Given the user has role ADMIN, when user updates a customer, then audit log is recorded")
-	void testUpdateAsAdmin() {
-		Mockito.when(user.getRole()).thenReturn(Role.ADMIN);
-		controller.update(new Customer(0, null, null));
+	@Nested
+	@DisplayName("As a user, I want to search and view Customer contact information")
+	class SearchTests {
 
-		Mockito.verify(auditService).post(Mockito.any(Audit.class));
+		@Nested
+		@DisplayName("Given user has privilege for search")
+		class GivenUserHasPrivilegeForSearch {
+
+			@ParameterizedTest
+			@DisplayName("and the search yields one result, then results are returned and viewed id is recorded to audit log")
+			@ArgumentsSource(RolesPermittedToPerformSearch.class)
+			void testSearch(Role role) {
+				givenUserRoleIs(role);
+				givenSearchedReturns(new Customer(1, "Erkki Heimonen", null));
+
+				Collection<Customer> actualResult = whenSearched();
+
+				assertAll(() -> assertSearchResultsAre(actualResult, new Customer(1, "Erkki Heimonen", null)),
+						() -> assertAuditsAreRecorded(
+								new Audit(USER_NAME, "Viewed contact information for Customer id 1")));
+
+			}
+
+			@ParameterizedTest
+			@DisplayName("and the search yields multiple results, then results are returned and all viewed ids are recorded to audit log")
+			@ArgumentsSource(RolesPermittedToPerformSearch.class)
+			void testSearchReturnsMultipleResults(Role role) throws Exception {
+				givenUserRoleIs(role);
+				givenSearchedReturns(new Customer(1, "Erkki Heimonen", null),
+						new Customer(2, "Lasse Parjatmaa", "lasse.parjatmaa@yaymail.com"));
+
+				Collection<Customer> actualResult = whenSearched();
+
+				assertAll(
+						() -> assertSearchResultsAre(actualResult, new Customer(1, "Erkki Heimonen", null),
+								new Customer(2, "Lasse Parjatmaa", "lasse.parjatmaa@yaymail.com")),
+						() -> assertAuditsAreRecorded(
+								new Audit(USER_NAME, "Viewed contact information for Customer id 1"),
+								new Audit(USER_NAME, "Viewed contact information for Customer id 2")));
+
+			}
+
+			@ParameterizedTest
+			@DisplayName("and search yields no results, when user runs the search, the an empty collection is returned and no operation is recorded to audit log")
+			@ArgumentsSource(RolesPermittedToPerformSearch.class)
+			void noSearchResults(Role role) throws Exception {
+				givenUserRoleIs(role);
+				givenSearchedReturns();
+
+				Collection<Customer> actualResult = whenSearched();
+
+				assertAll(() -> assertTrue(actualResult.isEmpty(), "Empty collection is returned"),
+						() -> Mockito.verifyZeroInteractions(auditService));
+			}
+
+		}
+
+		@Test
+		@DisplayName("Given the user has no role, when user runs the search, then an error is reported and audit log is recorded")
+		void userHasNoRole() throws Exception {
+			givenUserRoleIs(null);
+
+			assertThrows(RuntimeException.class, () -> whenSearched(), "User may not perform the action");
+
+			assertAll(() -> Mockito.verifyZeroInteractions(customerService),
+					() -> assertAuditsAreRecorded(new Audit(USER_NAME, "Attempted to perform search")));
+		}
+
+	}
+
+	@Nested
+	@DisplayName("As an admin user, I want to update users' contact information")
+	class UpdateTest {
+
+		@ParameterizedTest
+		@DisplayName("Given the user has no privileges, when user updates a customer, then an error is reported and audit log is recorded")
+		@ArgumentsSource(RolesNotPermittedToPerformUpdate.class)
+		void testUpdateAsUser(Role role) throws Exception {
+			givenUserRoleIs(role);
+
+			assertThrows(RuntimeException.class, () -> whenUpdating(new Customer(1, null, null)),
+					"User may not perform the action");
+
+			assertAll("No updates are made and audit log is recorded",
+					() -> Mockito.verifyZeroInteractions(customerService),
+					() -> assertAuditsAreRecorded(new Audit(USER_NAME, "Attempted to update customer with id 1")));
+		}
+
+		@Test
+		@DisplayName("Given the user has role ADMIN, when user updates a customer, then audit log is recorded")
+		void testUpdateAsAdmin() {
+			givenUserRoleIs(Role.ADMIN);
+
+			whenUpdating(new Customer(1, "Jaakko Kopiainen", "jaakko.kop123@gmailer.com"));
+
+			assertAll("Customer is updated and audit log is recorded",
+					() -> assertUpdatedWith(new Customer(1, "Jaakko Kopiainen", "jaakko.kop123@gmailer.com")),
+					() -> assertAuditsAreRecorded(new Audit(USER_NAME, "Updating customer :1")));
+		}
+	}
+
+	private void givenUserRoleIs(Role role) {
+		User user = new User(USER_NAME, role);
+		controller = new Controller(user, auditService, customerService);
+	}
+
+	private void givenSearchedReturns(Customer... customers) {
+		Mockito.when(customerService.search(Mockito.anyString())).thenReturn(Arrays.asList(customers));
+	}
+
+	private Collection<Customer> whenSearched() {
+		return controller.search("*");
+	}
+
+	private void whenUpdating(Customer customer) {
+		controller.update(customer);
+	}
+
+	private void assertSearchResultsAre(Collection<Customer> actualSearchResult, Customer... customers) {
+		assertIterableEquals(Arrays.asList(customers), actualSearchResult, "Search returns expected customers");
+	}
+
+	private void assertAuditsAreRecorded(Audit... audits) {
+		Mockito.verify(auditService, Mockito.atLeastOnce()).post(auditCaptor.capture());
+		assertEquals(Arrays.asList(audits), auditCaptor.getAllValues(), "Operations are recorded to audit log");
+	}
+
+	private void assertUpdatedWith(Customer customer) {
+		Mockito.verify(customerService).save(customerCaptor.capture());
+		assertEquals(customer, customerCaptor.getValue(), "Expected customer data is saved");
 	}
 
 }
