@@ -21,7 +21,6 @@ import org.junit.jupiter.params.provider.ArgumentsProvider;
 import org.junit.jupiter.params.provider.ArgumentsSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -42,13 +41,12 @@ class ControllerTest {
 	private ArgumentCaptor<Audit> auditCaptor;
 	@Captor
 	private ArgumentCaptor<Customer> customerCaptor;
-	@Mock
-	private User user;
+
 	@Mock
 	private AuditService auditService;
 	@Mock
 	private CustomerService customerService;
-	@InjectMocks
+
 	private Controller controller;
 
 	static class RolesPermittedToPerformSearch implements ArgumentsProvider {
