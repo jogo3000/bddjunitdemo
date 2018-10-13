@@ -23,7 +23,7 @@ import bddjunitdemo.user.Role;
 import bddjunitdemo.user.User;
 
 @ExtendWith(MockitoExtension.class)
-class ControllerTest {
+class MessyControllerTest {
 	@Mock
 	private User user;
 	@Mock
