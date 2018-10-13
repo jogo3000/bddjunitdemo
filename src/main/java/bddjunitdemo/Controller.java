@@ -6,6 +6,7 @@ import bddjunitdemo.audit.Audit;
 import bddjunitdemo.audit.AuditService;
 import bddjunitdemo.customer.Customer;
 import bddjunitdemo.customer.CustomerService;
+import bddjunitdemo.user.Role;
 import bddjunitdemo.user.User;
 
 public class Controller {
@@ -25,6 +26,9 @@ public class Controller {
 	}
 
 	public void update(Customer customer) {
+		if (Role.ADMIN != user.getRole()) {
+			throw new RuntimeException("User not admin");
+		}
 		auditService.post(new Audit(user.getName(), "Updating customer :" + customer.getId()));
 		customerService.save(customer);
 	}

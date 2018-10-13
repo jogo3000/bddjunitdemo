@@ -2,6 +2,7 @@ package bddjunitdemo;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.fail;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -18,6 +19,7 @@ import bddjunitdemo.audit.Audit;
 import bddjunitdemo.audit.AuditService;
 import bddjunitdemo.customer.Customer;
 import bddjunitdemo.customer.CustomerService;
+import bddjunitdemo.user.Role;
 import bddjunitdemo.user.User;
 
 @ExtendWith(MockitoExtension.class)
@@ -52,6 +54,15 @@ class ControllerTest {
 
 	@Test
 	void testUpdate() throws Exception {
+		Mockito.when(user.getRole()).thenReturn(Role.USER);
+		try {
+			controller.update(new Customer(0, null, null));
+			fail("");
+		} catch (Exception e) {
+
+		}
+
+		Mockito.when(user.getRole()).thenReturn(Role.ADMIN);
 		controller.update(new Customer(0, null, null));
 
 		Mockito.verify(auditService).post(Mockito.any(Audit.class));
