@@ -25,7 +25,7 @@ class CustomerDatabaseTest {
     CustomerDatabase db;
 
     @Test
-    void test() {
+    void testSearch() {
         @SuppressWarnings("unchecked")
         TypedQuery<Customer> typedQuery = Mockito.mock(TypedQuery.class);
         Mockito.when(em.createQuery(Mockito.anyString(), Mockito.eq(Customer.class))).thenReturn(typedQuery);

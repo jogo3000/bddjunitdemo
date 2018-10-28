@@ -9,7 +9,7 @@ import javax.persistence.TypedQuery;
 
 public class CustomerDatabase implements CustomerService {
 
-    EntityManager em;
+    private final EntityManager em;
 
     public CustomerDatabase() {
         EntityManagerFactory emf = Persistence.createEntityManagerFactory("defaultPersistenceUnit");
