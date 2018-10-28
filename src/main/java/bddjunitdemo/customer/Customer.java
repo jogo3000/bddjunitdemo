@@ -1,9 +1,18 @@
 package bddjunitdemo.customer;
 
+import javax.persistence.Column;
+import javax.persistence.Entity;
+import javax.persistence.Id;
+import javax.persistence.Table;
+
+@Entity
+@Table(name = "CUSTOMER")
 public class Customer {
 	private long id;
 	private String name;
 	private String email;
+	
+	public Customer() {	}
 
 	public Customer(long id, String name, String email) {
 		this.id = id;
@@ -11,16 +20,31 @@ public class Customer {
 		this.email = email;
 	}
 
+	@Id
 	public long getId() {
 		return id;
 	}
 
+	@Column
 	public String getName() {
 		return name;
 	}
 
+	@Column
 	public String getEmail() {
 		return email;
+	}
+
+	public void setId(long id) {
+		this.id = id;
+	}
+
+	public void setName(String name) {
+		this.name = name;
+	}
+
+	public void setEmail(String email) {
+		this.email = email;
 	}
 
 	@Override
